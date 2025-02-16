@@ -24,30 +24,28 @@ class VCJoin(commands.Cog):
 
         bot_voice_client = discord.utils.get(self.bot.voice_clients, guild=guild)
 
-        if after.channel == vc_channel:
+        # VC の現在のメンバーリストを取得（Bot を除外）
+        non_bot_members = [m for m in vc_channel.members if not m.bot]
+
+        # ユーザーが VC に入ったとき
+        if after.channel == vc_channel and before.channel != vc_channel:
             if bot_voice_client and bot_voice_client.is_connected():
-                return  
-            
-            try:
-                vc = await vc_channel.connect()
-                vcread_cog = self.bot.get_cog("VCRead")
-                if vcread_cog:
-                    await vcread_cog.set_voice_client(vc)
+                return  # すでに接続している場合は何もしない
 
-                    # VC に紐づいたテキストチャット（ボイスチャンネルのメッセージ機能）を取得
-                    if vc_channel.permissions_for(guild.me).read_messages:
-                        text_channel = vc_channel
-                        await vcread_cog.set_text_channel(text_channel)
-                        print(f"📝 読み上げ対象チャンネルを VCテキスト ({vc_channel.name}) に設定しました")
-                    else:
-                        print("⚠️ VCテキストチャンネルの権限がない、または存在しません")
+            if len(non_bot_members) == 1:  # 最初のユーザーが入室した場合のみ接続
+                try:
+                    vc = await vc_channel.connect()
+                    vcread_cog = self.bot.get_cog("VCRead")
+                    if vcread_cog:
+                        await vcread_cog.set_voice_client(vc)
+                        await vcread_cog.set_text_channel(vc_channel)
+                    print(f"✅ Bot が {vc_channel.name} に接続しました")
+                except discord.errors.ClientException:
+                    print(f"⚠️ Bot は既に VC に接続しています")
 
-                print(f"✅ Bot が {vc_channel.name} に接続しました")
-            except discord.errors.ClientException:
-                print(f"⚠️ Bot は既に VC に接続しています")
-
+        # VC から最後のユーザーが退出したとき
         elif before.channel == vc_channel and after.channel != vc_channel:
-            if bot_voice_client and len(vc_channel.members) == 1:
+            if bot_voice_client and len(non_bot_members) == 0:  # ユーザーがいなくなった場合
                 await bot_voice_client.disconnect()
                 vcread_cog = self.bot.get_cog("VCRead")
                 if vcread_cog:

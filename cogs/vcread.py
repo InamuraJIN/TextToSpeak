@@ -24,7 +24,6 @@ class VCRead(commands.Cog):
 
     async def speak_text(self, text):
         if not self.voice_client or not self.voice_client.is_connected():
-            print("⚠️ Bot は VC に接続していません。読み上げをスキップします。")
             return
         
         tts = gTTS(text=text, lang="ja")
@@ -45,15 +44,12 @@ class VCRead(commands.Cog):
 
         text = message.content.strip()
 
-        # 修正①: メンションを含む場合は記号スキップの対象外
         if not message.mentions and text and text[0] in self.ignore_prefix:
-            print(f"⚠️ {message.author.display_name} のメッセージをスキップ: {text}")
             return
 
-        # 絵文字を削除
         text = self.remove_emojis(text)
 
-        text = await self.format_text(text)
+        text = await self.format_text(message)
         if message.author.id != self.last_user:
             text = f"{message.author.display_name}、{text}"
         self.last_user = message.author.id
@@ -72,7 +68,6 @@ class VCRead(commands.Cog):
 
         bot_channel = bot_voice_client.channel
 
-        # 修正②: 入退室時の読み上げは記号スキップの対象外
         if after.channel == bot_channel and before.channel != bot_channel:
             await self.speak_text(f"{member.display_name}、やっほー")
         elif before.channel == bot_channel and (after.channel != bot_channel or after.channel is None):
@@ -81,17 +76,20 @@ class VCRead(commands.Cog):
     def remove_emojis(self, text):
         return emoji.replace_emoji(text, replace="")
 
-    async def format_text(self, text):
-        text = text.lower()
+    async def format_text(self, message):
+        text = message.content.lower()
         text = re.sub(r"[ｗw]{2,}", "わらわら", text)
         text = re.sub(r"[ｗw]", "わら", text)
 
         for key, value in self.word_dict.items():
             text = text.replace(key, value)
 
-        text = "URL" if "http" in text else text
-        text = "添付ファイル" if "添付" in text else text
-        
+        if "http" in text:
+            return "URL"
+
+        if message.attachments:
+            return "添付ファイル"
+
         return text
 
     def is_user_in_vc(self, user):
