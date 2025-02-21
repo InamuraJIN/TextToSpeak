@@ -16,15 +16,22 @@ intents.guilds = True
 intents.voice_states = True
 
 bot = commands.Bot(command_prefix="/", intents=intents)
+loaded_cogs = set()
 
 async def load_extensions():
-    for file in glob.glob("cogs/*.py"):
-        cog_name = file.replace("/", ".").replace("\\", ".").replace(".py", "")
+    files = sorted(set(glob.glob("cogs/*.py")), key=str.lower)
+    for path in files:
+        filename = os.path.basename(path)
+        if filename.startswith("__"):
+            continue
+        cog_name = f"cogs.{filename[:-3]}"
+        if cog_name in loaded_cogs:
+            continue
         try:
             await bot.load_extension(cog_name)
-            print(f"✅ {cog_name} をロードしました")
+            loaded_cogs.add(cog_name)
         except Exception as e:
-            print(f"⚠️ {cog_name} のロードに失敗: {e}")
+            print(f"⚠️ {filename[:-3]} のロードに失敗: {e}")
 
 @bot.event
 async def on_ready():

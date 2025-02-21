@@ -5,7 +5,7 @@ import json
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 
-TIMEOUT_SECONDS = 60  #タイムアウト（秒）
+TIMEOUT_SECONDS = 60  # タイムアウト（秒）
 
 load_dotenv("GAPI.env")
 VC_LOG_CHANNEL_ID = int(os.getenv("DISCORD_VC_LOG"))
@@ -56,14 +56,25 @@ class VCLog(commands.Cog):
 
             if channel:
                 vc_invite = await after.channel.create_invite(max_age=0, max_uses=0, unique=False)
-                display_name = f"{member.mention}（{member.display_name}）"
+                avatar_url = member.display_avatar.url if member.display_avatar else None
+                nickname = member.display_name
+                user_mention = member.mention
                 vc_name_link = f"[{after.channel.name}]({vc_invite.url})"
+
                 embed = discord.Embed(
-                    description=f"{display_name} が {vc_name_link} に参加しました",
-                    color=discord.Color.green()
+                    description=f"{user_mention} が {vc_name_link} に参加しました",
+                    color=discord.Color.green(),
+                    timestamp=now
                 )
                 embed.set_footer(text=f"ユーザーID: {member.id}")
+
+                # サーバーニックネームを一行目に表示し、アイコンは右側に表示
+                embed.add_field(name=f"{nickname}", value="\u200b", inline=False)
+                if avatar_url:
+                    embed.set_thumbnail(url=avatar_url)
+
                 await channel.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(VCLog(bot))
+    print("✅ vclog をロードしました")
