@@ -36,6 +36,12 @@ async def load_extensions():
 @bot.event
 async def on_ready():
     print("✅ Discord Botが起動しました")
+    try:
+        bot.tree.copy_global_to(guild=discord.Object(id=GUILD_ID))
+        await bot.tree.sync(guild=discord.Object(id=GUILD_ID))
+        print("✅ スラッシュコマンドを同期しました")
+    except Exception as e:
+        print(f"⚠️ スラッシュコマンドの同期に失敗しました: {e}")
 
 @bot.event
 async def on_error(event, *args, **kwargs):
