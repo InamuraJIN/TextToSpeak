@@ -1,11 +1,12 @@
 import discord
 from discord.ext import commands
-from gtts import gTTS
 import os
 import json
 import re
 import emoji
 import asyncio
+import requests
+import base64
 
 class VCRead(commands.Cog):
     def __init__(self, bot):
@@ -22,10 +23,10 @@ class VCRead(commands.Cog):
         with open(ignore_prefix_path, encoding="utf-8") as f:
             self.ignore_prefix = set(f.read().strip().splitlines())
 
-        # Google TTS の音声設定
-        self.speaking_rate = 1.2  
-        self.pitch = 0.0 
-        self.volume_gain_db = 0.0  
+        self.api_key = os.getenv("GOOGLE_TTS_API_KEY", "")
+        self.speaking_rate = 1.2
+        self.pitch = 0.0
+        self.volume_gain_db = 0.0
 
         self.read_queue = asyncio.Queue()
         self.read_task = self.bot.loop.create_task(self.read_loop())
@@ -45,15 +46,50 @@ class VCRead(commands.Cog):
             except asyncio.CancelledError:
                 break
 
+    def synthesize_speech(self, text: str) -> bytes:
+        if not self.api_key:
+            return b""
+
+        url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={self.api_key}"
+        request_body = {
+            "input": {
+                "text": text
+            },
+            "voice": {
+                "languageCode": "ja-JP",
+                "name": "ja-JP-Standard-A"
+            },
+            "audioConfig": {
+                "audioEncoding": "MP3",
+                "speakingRate": self.speaking_rate,
+                "pitch": self.pitch,
+                "volumeGainDb": self.volume_gain_db
+            }
+        }
+
+        try:
+            response = requests.post(url, json=request_body, timeout=10)
+            if response.status_code != 200:
+                print(f"⚠️ Text-to-Speech API 呼び出し失敗: {response.text}")
+                return b""
+            resp_json = response.json()
+            audio_content = resp_json.get("audioContent", "")
+            if not audio_content:
+                return b""
+            return base64.b64decode(audio_content)
+        except Exception as e:
+            print(f"⚠️ Text-to-Speech API でエラー: {e}")
+            return b""
+
     async def _speak_text(self, text: str):
         if not self.voice_client or not self.voice_client.is_connected():
             return
-        try:
-            tts = gTTS(text=text, lang="ja")
-        except AssertionError:
+        audio_data = self.synthesize_speech(text)
+        if not audio_data:
             return
         file_path = "voice.mp3"
-        tts.save(file_path)
+        with open(file_path, "wb") as f:
+            f.write(audio_data)
         while self.voice_client.is_playing():
             await asyncio.sleep(0.3)
         self.voice_client.play(discord.FFmpegPCMAudio(file_path))
@@ -73,12 +109,9 @@ class VCRead(commands.Cog):
             return
         if not self.is_user_in_vc(message.author):
             return
-
         text = message.content.strip()
         if not message.mentions and text and text[0] in self.ignore_prefix:
             return
-        
-        # 添付ファイルがある場合は「添付ファイル」とする
         if message.attachments:
             text = "添付ファイル"
         else:
@@ -86,13 +119,9 @@ class VCRead(commands.Cog):
             for ch in self.ignore_prefix:
                 text = text.replace(ch, "")
             text = await self.format_text(text)
-
-
-        # メンションをサーバーニックネームに置換
         for mention in message.mentions:
             text = text.replace(f"<@{mention.id}>", mention.display_name)
             text = text.replace(f"<@!{mention.id}>", mention.display_name)
-
         text = emoji.replace_emoji(text, replace="")
         for ch in self.ignore_prefix:
             text = text.replace(ch, "")
@@ -100,7 +129,6 @@ class VCRead(commands.Cog):
         if message.author.id != self.last_user:
             text = f"{message.author.display_name}、{text}"
         self.last_user = message.author.id
-
         await self.speak_text(text)
 
     @commands.Cog.listener()
@@ -141,3 +169,76 @@ class VCRead(commands.Cog):
 async def setup(bot):
     await bot.add_cog(VCRead(bot))
     print("✅ vcread をロードしました")
+
+async def read_loop(self):
+    while True:
+        try:
+            text = await self.read_queue.get()
+            if text.strip() == "":
+                print("[DEBUG] 空文字列、読み上げスキップ")
+                self.read_queue.task_done()
+                continue
+            print(f"[DEBUG] 読み上げ開始: {text}")
+            await self._speak_text(text)
+            self.read_queue.task_done()
+        except asyncio.CancelledError:
+            break
+
+def synthesize_speech(self, text: str) -> bytes:
+    if not self.api_key:
+        print("⚠️ APIキーが設定されていません")
+        return b""
+
+    url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={self.api_key}"
+    request_body = {
+        "input": {"text": text},
+        "voice": {
+            "languageCode": "ja-JP",
+            "name": "ja-JP-Standard-A"
+        },
+        "audioConfig": {
+            "audioEncoding": "MP3",
+            "speakingRate": self.speaking_rate,
+            "pitch": self.pitch,
+            "volumeGainDb": self.volume_gain_db
+        }
+    }
+
+    try:
+        response = requests.post(url, json=request_body, timeout=10)
+        if response.status_code != 200:
+            print(f"⚠️ Text-to-Speech API 呼び出し失敗: {response.status_code} {response.text}")
+            return b""
+        resp_json = response.json()
+        audio_content = resp_json.get("audioContent", "")
+        if not audio_content:
+            print("⚠️ API応答に audioContent が含まれていません")
+            return b""
+        print("[DEBUG] 音声データ取得成功")
+        return base64.b64decode(audio_content)
+    except Exception as e:
+        print(f"⚠️ Text-to-Speech API でエラー: {e}")
+        return b""
+
+async def _speak_text(self, text: str):
+    if not self.voice_client or not self.voice_client.is_connected():
+        print("⚠️ voice_client が接続されていません")
+        return
+    audio_data = self.synthesize_speech(text)
+    if not audio_data:
+        print("⚠️ audio_data が空のため再生スキップ")
+        return
+    file_path = "voice.mp3"
+    with open(file_path, "wb") as f:
+        f.write(audio_data)
+    # 再生待機
+    count = 0
+    while self.voice_client.is_playing():
+        await asyncio.sleep(0.3)
+        count += 1
+        if count > 100:  # 約30秒でリセット（詰まり対策）
+            print("⚠️ 再生が長すぎるためスキップ")
+            return
+    self.voice_client.play(discord.FFmpegPCMAudio(file_path))
+    while self.voice_client.is_playing():
+        await asyncio.sleep(0.3)

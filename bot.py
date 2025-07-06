@@ -8,7 +8,14 @@ from dotenv import load_dotenv
 load_dotenv("GAPI.env")
 
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-GUILD_ID = int(os.getenv("DISCORD_GUILD_ID"))
+
+# ◆ カンマ区切りの文字列を分割してリスト化
+raw_ids = os.getenv("DISCORD_GUILD_ID", "")  # 例: "123456789012345678,987654321098765432"
+TARGET_GUILD_IDS = []
+for s in raw_ids.split(","):
+    s = s.strip()
+    if s.isdigit():
+        TARGET_GUILD_IDS.append(int(s))
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -35,11 +42,16 @@ async def load_extensions():
 
 @bot.event
 async def on_ready():
-    print("✅ Discord Botが起動しました")
+    print("✅ Botが起動しました")
+
+    # ◆ 複数ギルドに順次同期
     try:
-        bot.tree.copy_global_to(guild=discord.Object(id=GUILD_ID))
-        await bot.tree.sync(guild=discord.Object(id=GUILD_ID))
-        print("✅ スラッシュコマンドを同期しました")
+        for guild_id in TARGET_GUILD_IDS:
+            guild_obj = discord.Object(id=guild_id)
+            # ローカルに登録済みのコマンドをコピー＆同期
+            bot.tree.copy_global_to(guild=guild_obj)
+            await bot.tree.sync(guild=guild_obj)
+        print("✅ 複数サーバーのスラッシュコマンドを同期しました")
     except Exception as e:
         print(f"⚠️ スラッシュコマンドの同期に失敗しました: {e}")
 
