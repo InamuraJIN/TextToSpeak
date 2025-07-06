@@ -38,20 +38,27 @@ class VCRead(commands.Cog):
         while True:
             try:
                 text = await self.read_queue.get()
-                try:
-                    if text.strip():
-                        await self._speak_text(text)
-                finally:
+                if text.strip() == "":
                     self.read_queue.task_done()
+                    continue
+                await self._speak_text(text)
+                self.read_queue.task_done()
             except asyncio.CancelledError:
                 break
-            except Exception as e:
-                print(f"⚠️ 読み上げループでエラー: {e}")
+
+    async def restart_read_loop(self):
+        if self.read_task:
+            self.read_task.cancel()
+            try:
+                await self.read_task
+            except asyncio.CancelledError:
+                pass
+        self.read_queue = asyncio.Queue()
+        self.read_task = self.bot.loop.create_task(self.read_loop())
 
     def synthesize_speech(self, text: str) -> bytes:
         if not self.api_key:
             return b""
-
         url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={self.api_key}"
         request_body = {
             "input": {
@@ -68,7 +75,6 @@ class VCRead(commands.Cog):
                 "volumeGainDb": self.volume_gain_db
             }
         }
-
         try:
             response = requests.post(url, json=request_body, timeout=10)
             if response.status_code != 200:
@@ -84,8 +90,7 @@ class VCRead(commands.Cog):
             return b""
 
     async def _speak_text(self, text: str):
-        vc = self.voice_client
-        if not vc or not vc.is_connected():
+        if not self.voice_client or not self.voice_client.is_connected():
             return
         audio_data = self.synthesize_speech(text)
         if not audio_data:
@@ -93,16 +98,10 @@ class VCRead(commands.Cog):
         file_path = "voice.mp3"
         with open(file_path, "wb") as f:
             f.write(audio_data)
-        while vc and vc.is_playing():
+        while self.voice_client.is_playing():
             await asyncio.sleep(0.3)
-        if not vc or not vc.is_connected():
-            return
-        try:
-            vc.play(discord.FFmpegPCMAudio(file_path))
-        except Exception as e:
-            print(f"⚠️ 音声再生エラー: {e}")
-            return
-        while vc and vc.is_playing():
+        self.voice_client.play(discord.FFmpegPCMAudio(file_path))
+        while self.voice_client.is_playing():
             await asyncio.sleep(0.3)
 
     async def speak_text(self, text: str):
@@ -114,7 +113,15 @@ class VCRead(commands.Cog):
     async def on_message(self, message: discord.Message):
         if message.author.bot or not self.voice_client:
             return
-        if self.text_channel is None or message.channel.id != self.text_channel.id:
+        if self.text_channel is None:
+            return
+        if isinstance(self.text_channel, discord.VoiceChannel):
+            vc_id = os.getenv("DISCORD_VC_AUTOJOIN01")
+            if vc_id and str(self.text_channel.id) == vc_id and message.channel.id == int(vc_id):
+                pass
+            else:
+                return
+        elif message.channel.id != self.text_channel.id:
             return
         if not self.is_user_in_vc(message.author):
             return
@@ -174,6 +181,7 @@ class VCRead(commands.Cog):
 
     async def set_voice_client(self, vc: discord.VoiceClient):
         self.voice_client = vc
+        self.last_user = None
 
 async def setup(bot):
     await bot.add_cog(VCRead(bot))
