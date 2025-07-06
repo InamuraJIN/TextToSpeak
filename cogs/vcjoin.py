@@ -63,7 +63,12 @@ class VCJoin(commands.Cog):
             vcread = self.bot.get_cog("VCRead")
             if vcread:
                 await vcread.set_voice_client(vc)
-                await vcread.set_text_channel(vc_channel)
+                # Find appropriate text channel (same logic as SlashCommand.py)
+                attached_text_channel = discord.utils.get(member.guild.channels, id=vc_channel.id, type=discord.ChannelType.text)
+                if attached_text_channel is None:
+                    # Fallback to first available text channel in the guild
+                    attached_text_channel = discord.utils.get(member.guild.channels, type=discord.ChannelType.text)
+                await vcread.set_text_channel(attached_text_channel)
 
 async def setup(bot):
     await bot.add_cog(VCJoin(bot))
