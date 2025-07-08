@@ -13,6 +13,7 @@ class VCRead(commands.Cog):
         self.bot = bot
         self.voice_client = None
         self.text_channel = None
+        self.last_text_channel = None  # Store the last used text channel
         self.last_user = None
 
         dictionary_path = os.path.join(os.path.dirname(__file__), "../data/dictionary.json")
@@ -161,10 +162,16 @@ class VCRead(commands.Cog):
         return False
 
     async def set_text_channel(self, channel: discord.abc.Messageable):
+        if channel is not None:
+            self.last_text_channel = channel
         self.text_channel = channel
 
     async def set_voice_client(self, vc: discord.VoiceClient):
         self.voice_client = vc
+
+    def get_last_text_channel(self):
+        """Get the last used text channel for reconnection purposes"""
+        return self.last_text_channel
 
 async def setup(bot):
     await bot.add_cog(VCRead(bot))

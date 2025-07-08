@@ -48,10 +48,15 @@ class VCJoin(commands.Cog):
                 vcread = self.bot.get_cog("VCRead")
                 if vcread:
                     await vcread.set_voice_client(vc)
-                    # テキストチャンネルを設定
-                    attached_text_channel = discord.utils.get(guild.channels, id=vc_channel.id, type=discord.ChannelType.text)
-                    if attached_text_channel is None:
-                        attached_text_channel = discord.utils.get(guild.channels, type=discord.ChannelType.text)
+                    # Try to use the last used text channel first
+                    last_text_channel = vcread.get_last_text_channel()
+                    if last_text_channel and hasattr(last_text_channel, 'guild') and last_text_channel.guild == guild:
+                        attached_text_channel = last_text_channel
+                    else:
+                        # No previous channel or channel from different guild, use default logic
+                        attached_text_channel = discord.utils.get(guild.channels, id=vc_channel.id, type=discord.ChannelType.text)
+                        if attached_text_channel is None:
+                            attached_text_channel = discord.utils.get(guild.channels, type=discord.ChannelType.text)
                     await vcread.set_text_channel(attached_text_channel)
             except Exception as e:
                 print(f"⚠️ 起動時の自動接続に失敗 ({guild.name}): {e}")
@@ -111,11 +116,15 @@ class VCJoin(commands.Cog):
             vcread = self.bot.get_cog("VCRead")
             if vcread:
                 await vcread.set_voice_client(vc)
-                # Find appropriate text channel (same logic as SlashCommand.py)
-                attached_text_channel = discord.utils.get(member.guild.channels, id=vc_channel.id, type=discord.ChannelType.text)
-                if attached_text_channel is None:
-                    # Fallback to first available text channel in the guild
-                    attached_text_channel = discord.utils.get(member.guild.channels, type=discord.ChannelType.text)
+                # Try to use the last used text channel first
+                last_text_channel = vcread.get_last_text_channel()
+                if last_text_channel and hasattr(last_text_channel, 'guild') and last_text_channel.guild == member.guild:
+                    attached_text_channel = last_text_channel
+                else:
+                    # No previous channel or channel from different guild, use default logic
+                    attached_text_channel = discord.utils.get(member.guild.channels, id=vc_channel.id, type=discord.ChannelType.text)
+                    if attached_text_channel is None:
+                        attached_text_channel = discord.utils.get(member.guild.channels, type=discord.ChannelType.text)
                 await vcread.set_text_channel(attached_text_channel)
 
 async def setup(bot):
