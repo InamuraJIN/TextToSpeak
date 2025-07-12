@@ -49,9 +49,11 @@ class VCJoin(commands.Cog):
                 if vcread:
                     await vcread.set_voice_client(vc)
                     # テキストチャンネルを設定
-                    attached_text_channel = discord.utils.get(guild.channels, id=vc_channel.id, type=discord.ChannelType.text)
-                    if attached_text_channel is None:
-                        attached_text_channel = discord.utils.get(guild.channels, type=discord.ChannelType.text)
+                    attached_text_channel = guild.get_channel(vc_channel.id)
+                    if not isinstance(attached_text_channel, discord.TextChannel):
+                        attached_text_channel = getattr(vc_channel, "text_channel", None)
+                    if not isinstance(attached_text_channel, discord.TextChannel):
+                        attached_text_channel = discord.utils.get(guild.text_channels)
                     await vcread.set_text_channel(attached_text_channel)
             except Exception as e:
                 print(f"⚠️ 起動時の自動接続に失敗 ({guild.name}): {e}")
@@ -112,10 +114,11 @@ class VCJoin(commands.Cog):
             if vcread:
                 await vcread.set_voice_client(vc)
                 # Find appropriate text channel (same logic as SlashCommand.py)
-                attached_text_channel = discord.utils.get(member.guild.channels, id=vc_channel.id, type=discord.ChannelType.text)
-                if attached_text_channel is None:
-                    # Fallback to first available text channel in the guild
-                    attached_text_channel = discord.utils.get(member.guild.channels, type=discord.ChannelType.text)
+                attached_text_channel = member.guild.get_channel(vc_channel.id)
+                if not isinstance(attached_text_channel, discord.TextChannel):
+                    attached_text_channel = getattr(vc_channel, "text_channel", None)
+                if not isinstance(attached_text_channel, discord.TextChannel):
+                    attached_text_channel = discord.utils.get(member.guild.text_channels)
                 await vcread.set_text_channel(attached_text_channel)
 
 async def setup(bot):

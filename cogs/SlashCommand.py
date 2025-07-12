@@ -18,8 +18,10 @@ class SlashCommand(commands.Cog):
 
         vcread_cog = self.bot.get_cog("VCRead")
         if vcread_cog:
-            attached_text_channel = discord.utils.get(interaction.guild.channels, id=voice_channel.id, type=discord.ChannelType.text)
-            if attached_text_channel is None:
+            attached_text_channel = interaction.guild.get_channel(voice_channel.id)
+            if not isinstance(attached_text_channel, discord.TextChannel):
+                attached_text_channel = getattr(voice_channel, "text_channel", None)
+            if not isinstance(attached_text_channel, discord.TextChannel):
                 attached_text_channel = interaction.channel
             await vcread_cog.set_text_channel(attached_text_channel)
             await vcread_cog.set_voice_client(vc)
@@ -51,8 +53,10 @@ class SlashCommand(commands.Cog):
 
         vcread_cog = self.bot.get_cog("VCRead")
         if vcread_cog:
-            attached_text_channel = discord.utils.get(interaction.guild.channels, id=voice_channel.id, type=discord.ChannelType.text)
-            if attached_text_channel is None:
+            attached_text_channel = interaction.guild.get_channel(voice_channel.id)
+            if not isinstance(attached_text_channel, discord.TextChannel):
+                attached_text_channel = getattr(voice_channel, "text_channel", None)
+            if not isinstance(attached_text_channel, discord.TextChannel):
                 attached_text_channel = interaction.channel
             await vcread_cog.set_text_channel(attached_text_channel)
             await vcread_cog.set_voice_client(vc)
