@@ -38,13 +38,15 @@ class VCRead(commands.Cog):
         while True:
             try:
                 text = await self.read_queue.get()
-                if text.strip() == "":
+                try:
+                    if text.strip():
+                        await self._speak_text(text)
+                finally:
                     self.read_queue.task_done()
-                    continue
-                await self._speak_text(text)
-                self.read_queue.task_done()
             except asyncio.CancelledError:
                 break
+            except Exception as e:
+                print(f"⚠️ 読み上げループでエラー: {e}")
 
     def synthesize_speech(self, text: str) -> bytes:
         if not self.api_key:
@@ -82,7 +84,8 @@ class VCRead(commands.Cog):
             return b""
 
     async def _speak_text(self, text: str):
-        if not self.voice_client or not self.voice_client.is_connected():
+        vc = self.voice_client
+        if not vc or not vc.is_connected():
             return
         audio_data = self.synthesize_speech(text)
         if not audio_data:
@@ -90,10 +93,16 @@ class VCRead(commands.Cog):
         file_path = "voice.mp3"
         with open(file_path, "wb") as f:
             f.write(audio_data)
-        while self.voice_client.is_playing():
+        while vc and vc.is_playing():
             await asyncio.sleep(0.3)
-        self.voice_client.play(discord.FFmpegPCMAudio(file_path))
-        while self.voice_client.is_playing():
+        if not vc or not vc.is_connected():
+            return
+        try:
+            vc.play(discord.FFmpegPCMAudio(file_path))
+        except Exception as e:
+            print(f"⚠️ 音声再生エラー: {e}")
+            return
+        while vc and vc.is_playing():
             await asyncio.sleep(0.3)
 
     async def speak_text(self, text: str):
